@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberCinch Shield — SDK Configuration Reference</title>
+<meta name="description" content="Field-by-field reference for CyberCinch Shield Android SDK's ShieldConfig — detection modules, telemetry, license validation, logging, SSL pinning, and example configurations.">
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../">cybercinch-shield-releases</a>
+    <div class="links">
+      <a href="index.html">Developer Manual</a>
+      <a href="https://tools.cybercinch.in/sdk">Get an API key</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<h1>CyberCinch Shield — SDK Configuration Reference</h1>
+<p class="lede">For developers integrating the Android SDK into their apps. Covers every <code>ShieldConfig</code> field with usage guidance and two complete example configurations.</p>
+<p>New to the SDK? Start with the <a href="index.html">Developer Manual</a> — this page is the deep-dive reference for tuning <code>ShieldConfig</code> once you're already integrated.</p>
+
+<hr>
+
+<h2 id="1-quick-start">1. Quick Start (zero-config)</h2>
+<pre><code>CyberCinchShield.initialize(
+    context = this,
+    apiKey  = "cc_live_your_key_here"
+)</code></pre>
+<p>All fields default to production-safe values. The sections below explain when and why you would override them.</p>
+
+<hr>
+
+<h2 id="2-backend-urls">2. Backend URLs</h2>
+<p>Four fields, all defaulting to <code>https://api.cybercinch.in</code>. Override all four together when targeting a staging environment or a self-hosted deployment:</p>
+<table>
+<tr><th>Field</th><th>Purpose</th></tr>
+<tr><td><code>licenseBaseUrl</code></td><td>API key validation</td></tr>
+<tr><td><code>telemetryBaseUrl</code></td><td>Security event ingest</td></tr>
+<tr><td><code>attestationBaseUrl</code></td><td>Play Integrity / App Attest verification</td></tr>
+<tr><td><code>configBaseUrl</code></td><td>OTA detection config delivery</td></tr>
+</table>
+<p>No trailing slash. All four accept <code>http://</code> for local or emulator testing (<code>android:usesCleartextTraffic</code> must be enabled in your debug manifest).</p>
+
+<hr>
+
+<h2 id="3-detection-modules">3. Detection Modules</h2>
+<table>
+<tr><th>Field</th><th>Default</th><th>Notes</th></tr>
+<tr><td><code>enableRootDetection</code></td><td><code>true</code></td><td>Requires <code>runtime_protection</code> license feature</td></tr>
+<tr><td><code>enableEmulatorDetection</code></td><td><code>true</code></td><td>Always available; no license gate</td></tr>
+<tr><td><code>enableRuntimeProtection</code></td><td><code>true</code></td><td>Frida/debugger; requires <code>runtime_protection</code> license feature</td></tr>
+<tr><td><code>enableIntegrityCheck</code></td><td><code>true</code></td><td>Implemented and correct</td></tr>
+</table>
+<p>Disable individual detectors only if you have a specific reason (for example, your CI pipeline runs on emulators and you want emulator signals suppressed in test results). Disabling <code>enableRootDetection</code> or <code>enableRuntimeProtection</code> meaningfully reduces the SDK's ability to detect compromised devices.</p>
+
+<hr>
+
+<h2 id="4-telemetry-behaviour">4. Telemetry Behaviour</h2>
+
+<h3>4.1 Enabling / disabling (<code>enableTelemetry</code>)</h3>
+<p>Set <code>false</code> to disable all telemetry network activity. Local scanning continues normally; detected events are discarded rather than queued. Use this when:</p>
+<ul>
+  <li>You are waiting for explicit user consent before transmitting data.</li>
+  <li>Your app has a strict "no background network" policy.</li>
+  <li>You are running automated tests that must not produce backend traffic.</li>
+</ul>
+<p>Call <code>CyberCinchShield.setTelemetryConsent(true)</code> at runtime to re-enable after consent is obtained.</p>
+
+<h3>4.2 Dispatch mode (<code>telemetryMode</code>)</h3>
+<p><strong>AUTO_IMMEDIATE</strong> (default)<br>Dispatches events on a background IO coroutine immediately after each <code>scan()</code>. <code>scan()</code> returns without waiting — the HTTP call is fire-and-forget. Choose this when you scan infrequently (e.g. once per session) and want the lowest possible delay between detection and backend visibility.</p>
+<p><strong>AUTO_BATCHED</strong><br>Queues events after each scan; a background coroutine flushes them every <code>telemetryBatchIntervalMs</code> milliseconds. No immediate dispatch after <code>scan()</code>. Choose this when you scan frequently (e.g. once per screen transition) or want to amortise network cost across multiple scans.</p>
+<p><strong>MANUAL</strong><br>Queues events and never dispatches automatically. You call <code>CyberCinchShield.flushTelemetry()</code> at a time of your choosing — for example at app foreground, before a sensitive transaction, or via WorkManager on a schedule. Choose this when your app prohibits any background network activity or you need delivery tied to a specific user action.</p>
+<p><code>CyberCinchShield.flushTelemetry()</code> is available as an immediate flush in any mode.</p>
+
+<h3>4.3 Batch interval (<code>telemetryBatchIntervalMs</code>)</h3>
+<p>Only relevant in <code>AUTO_BATCHED</code>. Default: 60,000 ms (1 minute).</p>
+<table>
+<tr><th>Value</th><th>Use case</th></tr>
+<tr><td>15,000 ms</td><td>Near-real-time delivery; minimal batching benefit but reduces scan-to-ingest lag</td></tr>
+<tr><td>60,000 ms</td><td>Default; good balance for most apps</td></tr>
+<tr><td>300,000 ms</td><td>Battery-sensitive; acceptable for low-frequency scanning</td></tr>
+</table>
+<p>Values below 15,000 ms provide little batching benefit over <code>AUTO_IMMEDIATE</code>. Prefer <code>AUTO_IMMEDIATE</code> for sub-15-second delivery requirements.</p>
+
+<hr>
+
+<h2 id="5-license-validation-behaviour">5. License Validation Behaviour</h2>
+
+<h3>5.1 Fail-open vs fail-closed (<code>licenseValidationFailOpen</code>)</h3>
+<p>Controls what happens when <code>initialize()</code> cannot reach the license server.</p>
+<p><strong><code>true</code> (default — fail-open / high availability)</strong><br>The SDK continues with local-only operation using your <code>ShieldConfig</code> flags. Scans run, telemetry fires, and the device stays protected even if the license server is temporarily unreachable. <code>ScanResult.serverVerified</code> will be <code>false</code> until connectivity is restored.</p>
+<p><strong><code>false</code> (fail-closed / strict)</strong><br><code>initialize()</code> fails and <code>scan()</code> throws until a successful license validation has completed. The SDK is fully inoperable during license server outages.</p>
+<p><strong>When to choose each:</strong></p>
+<p>Most apps should use <code>true</code>. A brief license server outage should not disable device protection for your users.</p>
+<p>Banking, fintech, or regulated apps that must guarantee the SDK is operating under an active, current license should consider <code>false</code> — but weigh this carefully against the availability risk. An outage means the SDK stops working entirely until the server recovers, which may affect user-facing features that depend on a scan result.</p>
+
+<h3>5.2 Attestation failure handling (<code>failOnAttestationFailure</code>)</h3>
+<p>When <code>false</code> (default), <code>scan()</code> returns the local result immediately. When <code>true</code>, <code>scan()</code> throws on attestation failure.</p>
+<div class="callout warn">
+<strong><code>onServerVerdict</code> is present in the public API but does not currently work — do not rely on it.</strong> <code>CyberCinchShield.onServerVerdict(callback)</code> registers a callback, but nothing in the SDK ever invokes it. No asynchronous server verdict is ever delivered through it today, regardless of <code>failOnAttestationFailure</code>. The only real, working signal about server verification is <code>ScanResult.serverVerified</code>, returned synchronously from <code>scan()</code> itself — see the <a href="index.html#5-handling-results">Developer Manual's "Handling Results" section</a>.
+</div>
+
+<hr>
+
+<h2 id="6-other-settings">6. Other Settings</h2>
+
+<h3>6.1 Logging (<code>logLevel</code>)</h3>
+<table>
+<tr><th>Value</th><th>Output</th><th>When to use</th></tr>
+<tr><td><code>LogLevel.NONE</code></td><td>None</td><td>Release builds (default)</td></tr>
+<tr><td><code>LogLevel.DEBUG</code></td><td>Init, scan, dispatch decisions</td><td>Development / QA</td></tr>
+<tr><td><code>LogLevel.VERBOSE</code></td><td>Full per-call detail</td><td>Deep debugging</td></tr>
+</table>
+<p>ProGuard strips <code>DEBUG</code> and <code>VERBOSE</code> log calls in release builds, but set <code>NONE</code> explicitly in your release build config to be safe.</p>
+
+<h3>6.2 SSL pinning (<code>enableSslPinning</code>)</h3>
+<div class="callout warn">
+<strong>Neither the <code>ShieldConfig.enableSslPinning</code> flag nor the <code>CyberCinchShield.enableSslPinning(vararg hashes)</code> method currently do anything — both are dead code.</strong> The config flag is never read anywhere in the SDK. The method stores the hashes you pass it into an internal field that is never read anywhere else either. No certificate pinning is applied to your own app's network calls as a result of calling this, regardless of what you pass or whether the flag is set. This is a known, tracked gap that also covers the SDK's own internal network calls (license validation, telemetry, attestation) having no working certificate pinning today either. Do not depend on this feature yet.
+</div>
+
+<hr>
+
+<h2 id="7-example-configurations">7. Example Configurations</h2>
+
+<h3>7.1 High-security app (banking / fintech)</h3>
+<p>Priorities: strict license enforcement, real-time threat visibility, all detectors on, no tolerance for unverified SDK operation.</p>
+<pre><code>CyberCinchShield.initialize(
+    context = this,
+    apiKey  = "cc_live_your_key_here",
+    config  = ShieldConfig(
+        // Strict license enforcement — SDK unusable if the license server is
+        // unreachable. Acceptable for fintech where unlicensed operation is a
+        // compliance risk. Ensure your architecture tolerates this availability
+        // dependency before enabling.
+        licenseValidationFailOpen = false,
+
+        // Real-time telemetry: dispatch immediately after every scan.
+        enableTelemetry = true,
+        telemetryMode   = TelemetryMode.AUTO_IMMEDIATE,
+
+        // All detectors on. Runtime protection gated by license feature flag.
+        enableRootDetection     = true,
+        enableEmulatorDetection = true,
+        enableRuntimeProtection = true,
+        enableIntegrityCheck    = true,
+
+        // Block scan() on attestation failure — do not allow unverified devices
+        // to proceed to sensitive flows.
+        failOnAttestationFailure = true,
+
+        logLevel = LogLevel.NONE
+    )
+)</code></pre>
+
+<h3>7.2 Low-overhead app (casual game)</h3>
+<p>Priorities: minimal battery and network impact. The primary lever here is <code>AUTO_BATCHED</code> with a long interval — not disabling detectors. Root detection stays on because it provides a meaningful fraud signal (device manipulation, cheat engines) even in gaming contexts. Disabling <code>enableRuntimeProtection</code> and <code>enableIntegrityCheck</code> is an optional further reduction for apps on mid-range devices where the native overhead is measurable.</p>
+<pre><code>CyberCinchShield.initialize(
+    context = this,
+    apiKey  = "cc_live_your_key_here",
+    config  = ShieldConfig(
+        // Fail-open — a license server blip should never interrupt gameplay.
+        licenseValidationFailOpen = true,
+
+        // Batch telemetry every 5 minutes. This is the primary overhead reduction:
+        // network calls are amortised across all scans in the session rather than
+        // firing after each one.
+        enableTelemetry          = true,
+        telemetryMode            = TelemetryMode.AUTO_BATCHED,
+        telemetryBatchIntervalMs = 300_000,
+
+        // Root detection stays on — relevant for cheat-engine and device
+        // manipulation signals.
+        enableRootDetection     = true,
+        enableEmulatorDetection = true,
+
+        // Optional: disable the heavier native detectors if profiling shows
+        // measurable CPU cost on low-end target devices.
+        enableRuntimeProtection = false,
+        enableIntegrityCheck    = false,
+
+        failOnAttestationFailure = false,
+
+        logLevel = LogLevel.NONE
+    )
+)</code></pre>
+
+<footer class="page-footer">
+  CyberCinch Shield Android SDK · <a href="../">cybercinch-shield-releases</a> · <a href="index.html">Developer Manual</a>
+</footer>
+
+</div>
+</body>
+</html>

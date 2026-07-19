@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberCinch Shield — Android SDK Developer Manual</title>
+<meta name="description" content="Onboarding guide for integrating the CyberCinch Shield Android SDK: installation, initialization, scanning, error handling, and known limitations.">
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../">cybercinch-shield-releases</a>
+    <div class="links">
+      <a href="configuration.html">Configuration Reference</a>
+      <a href="https://tools.cybercinch.in/sdk">Get an API key</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<h1>CyberCinch Shield — Android SDK Developer Manual</h1>
+<p class="lede">The onboarding guide for integrating the CyberCinch Shield Android SDK into your own app. For third-party developers with no prior familiarity with this codebase.</p>
+<p>This document covers <em>how to integrate</em> the SDK. For a field-by-field reference of every <code>ShieldConfig</code> tuning option, see the <a href="configuration.html">Configuration Reference</a> — this manual links to it rather than duplicating it.</p>
+<p>Everything below is verified against the real, current SDK source as of this writing (SDK version <code>1.0.0</code>) — no aspirational API, nothing described as working that isn't. Where the SDK has a real, known gap, it's called out explicitly rather than glossed over — see <strong>§7, Known Limitations</strong> in particular.</p>
+
+<hr>
+
+<h2 id="1-quick-start">1. Quick Start</h2>
+<pre><code>// build.gradle.kts (:app) — see §2 for the full repository setup this requires
+dependencies {
+    implementation("com.cybercinch:cybercinch-shield-android:1.0.0")
+}</code></pre>
+<pre><code>// Application.onCreate()
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        CyberCinchShield.initialize(
+            context = this,
+            apiKey  = "cc_live_your_key_here"
+        )
+    }
+}</code></pre>
+<pre><code>// Anywhere with a coroutine scope
+lifecycleScope.launch {
+    val result = CyberCinchShield.scan()
+    if (result.riskLevel == RiskLevel.CRITICAL) {
+        // handle a compromised device — see §5, §10
+    }
+}</code></pre>
+<p>That's the shape of a minimal integration. The rest of this manual explains what each step actually does, what it doesn't do yet, and how to handle the result correctly.</p>
+
+<hr>
+
+<h2 id="2-installation">2. Installation</h2>
+
+<h3>2.1 Public, no account or token required</h3>
+<p>The SDK is distributed via a small, dedicated public Maven repository — <code>cybercinchtech/cybercinch-shield-releases</code> on GitHub, served as a static Maven repo through GitHub Pages (you're looking at it right now). This is a genuine "no install step"-style public flow: no GitHub account, no collaborator invitation, no personal access token. Add the repository URL below and the dependency line in §2.5 — that's the whole setup.</p>
+<p>This repository contains <strong>only build artifacts</strong> (the AAR, POM, sources jar, checksums) — never source code. The SDK's actual source stays in the private <code>cybercinchtech/cybercinch-mobile-shield</code> repository; publishing a new version means copying build output into the releases repo, not exposing anything new.</p>
+
+<h3>2.2 Coordinate</h3>
+<pre><code>com.cybercinch:cybercinch-shield-android:1.0.0</code></pre>
+
+<h3>2.3 Repository configuration</h3>
+<p>Add the releases repository. If your app uses Gradle's centralized repository management (<code>dependencyResolutionManagement</code> in <code>settings.gradle.kts</code> — the default for new Android Studio projects), add it there:</p>
+<pre><code>// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = "CyberCinchShieldReleases"
+            url = uri("https://cybercinchtech.github.io/cybercinch-shield-releases/")
+        }
+    }
+}</code></pre>
+<p>If your project instead declares repositories per-module (no centralized <code>dependencyResolutionManagement</code>, or it's set to allow project-level repos), the same <code>maven { ... }</code> block goes in your <code>:app</code> module's <code>build.gradle.kts</code> <code>repositories {}</code> block instead.</p>
+<p><code>google()</code> and <code>mavenCentral()</code> need to already be present (almost certainly are, in any real Android project) — the SDK's AAR declares transitive dependencies on the Play Integrity API, Play Services App Set, OkHttp, Kotlin coroutines, and AndroidX <code>lifecycle-process</code>, which resolve from those two repositories, not from the releases repository.</p>
+
+<h3>2.4 Internal / early-access track (invited collaborators only)</h3>
+<p>The public path above is all you need for a normal integration. If you're doing early internal testing with direct CyberCinch involvement, the SDK is also available via GitHub Packages on the private <code>cybercinchtech/cybercinch-mobile-shield</code> repository — this requires being invited as a collaborator and a classic PAT scoped to <code>read:packages</code> (<strong>not</strong> a fine-grained PAT — fine-grained tokens are rejected by the GitHub Packages/Maven endpoint even with <code>Contents: Read-only</code> access that works fine against the repo's real Contents API). This track exists for CyberCinch-coordinated testing prior to a public release, not for normal integration — if you don't already know you're on it, you're not; use §2.1–§2.3 instead.</p>
+
+<h3>2.5 Add the dependency</h3>
+<pre><code>// app/build.gradle.kts
+dependencies {
+    implementation("com.cybercinch:cybercinch-shield-android:1.0.0")
+}</code></pre>
+<p><code>minSdk</code> must be <strong>29</strong> or higher in your app's <code>defaultConfig</code> — this is the SDK's own minimum.</p>
+
+<hr>
+
+<h2 id="3-initialization">3. Initialization</h2>
+<pre><code>fun initialize(
+    context: Context,
+    apiKey: String,
+    config: ShieldConfig = ShieldConfig()
+)</code></pre>
+<p>Call this once, in <code>Application.onCreate()</code>, before anything else that depends on the SDK:</p>
+<pre><code>class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        CyberCinchShield.initialize(
+            context = this,
+            apiKey  = "cc_live_your_key_here"
+        )
+    }
+}</code></pre>
+
+<h3>3.1 <code>initialize()</code> is fire-and-forget — it never throws</h3>
+<p><code>initialize()</code> returns immediately and does its real work (license validation, attestation, config fetch) on an internal background coroutine. <strong>It cannot throw back into your calling code, under any circumstance</strong> — not for a malformed API key, not for a network failure, not even if you configure strict license enforcement (see <code>licenseValidationFailOpen</code> in the <a href="configuration.html#5-license-validation-behaviour">Configuration Reference §5.1</a>). Any failure during initialization is handled internally; nothing propagates to the call site. Don't wrap this call in try/catch expecting to catch a real failure — there's nothing for it to catch.</p>
+
+<h3>3.2 Calling it twice is safe, and silently ignored</h3>
+<p>A second <code>initialize()</code> call while the SDK is already initializing or initialized does nothing but log a warning — the SDK keeps using whatever <code>ShieldConfig</code> your <em>first</em> call passed. This is safe to rely on if your app has multiple entry points that might both attempt initialization.</p>
+
+<h3>3.3 There is no way to ask "is it ready yet?"</h3>
+<p>The SDK exposes no <code>isReady()</code>, no ready-state callback, and no suspend function that waits for initialization to finish. If you need to know when the SDK has become usable, the only real signal is calling <code>scan()</code> and handling the exception it throws if the SDK isn't ready yet (see §6) — there is no polling or observability API to reach for instead. Don't assume one exists.</p>
+
+<hr>
+
+<h2 id="4-running-a-scan">4. Running a Scan</h2>
+<pre><code>suspend fun scan(): ScanResult</code></pre>
+<pre><code>lifecycleScope.launch {
+    val result = CyberCinchShield.scan()
+    // handle result — see §5
+}</code></pre>
+
+<h3>4.1 The SDK runs one scan automatically, before you ever call <code>scan()</code> yourself</h3>
+<p>This is not optional detail to skip — <strong>the SDK auto-triggers exactly one <code>scan()</code> call on its own</strong>, immediately after <code>initialize()</code> successfully completes, via an internal auto-init mechanism (a <code>ContentProvider</code> that arms this behavior at process start, independent of when you call <code>initialize()</code>). If you have telemetry enabled, you will see events dispatched to the backend before your app ever explicitly calls <code>scan()</code>. This is expected, not a bug in your integration — just be aware of it so early telemetry activity doesn't confuse you during testing.</p>
+<p>Every scan after that first automatic one is entirely up to you — call <code>scan()</code> however often makes sense for your app (once per session, once per sensitive screen, on a timer, etc.).</p>
+
+<h3>4.2 <code>scan()</code> throws if the SDK isn't ready</h3>
+<pre><code>try {
+    val result = CyberCinchShield.scan()
+    // ...
+} catch (e: IllegalStateException) {
+    // SDK not ready yet — see below
+}</code></pre>
+<p><code>scan()</code> throws <code>IllegalStateException</code> if called before <code>initialize()</code> has completed (or if initialization failed internally — see §3.1 and §6). The exception message is the same either way ("not ready — call initialize() first and wait for it to complete") — you cannot distinguish "still starting up, try again shortly" from "permanently failed" from the exception alone. See §6 for the recommended handling pattern.</p>
+
+<hr>
+
+<h2 id="5-handling-results">5. Handling Results</h2>
+<pre><code>data class ScanResult(
+    val rooted: Boolean,
+    val jailbroken: Boolean,
+    val emulator: Boolean,
+    val runtimeCompromised: Boolean,
+    val appTampered: Boolean,
+    val riskScore: Int,
+    val riskLevel: RiskLevel,           // LOW, MEDIUM, HIGH, CRITICAL
+    val events: List&lt;SecurityEvent&gt;,
+    val serverVerified: Boolean,
+    val scanTimestamp: Long
+)</code></pre>
+
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td><code>rooted</code></td><td><code>true</code> if root-detection signals fired this scan.</td></tr>
+<tr><td><code>jailbroken</code></td><td><strong>Always <code>false</code> on Android.</strong> This field exists for shape-parity with the iOS SDK; the Android module never sets it <code>true</code>. Don't wait for it to fire.</td></tr>
+<tr><td><code>emulator</code></td><td><code>true</code> if emulator-detection signals fired.</td></tr>
+<tr><td><code>runtimeCompromised</code></td><td><code>true</code> if Frida/debugger/hook-framework signals fired.</td></tr>
+<tr><td><code>appTampered</code></td><td><code>true</code> if integrity verification (cert/DEX/lib hash) failed.</td></tr>
+<tr><td><code>riskScore</code></td><td>Aggregate numeric score across all fired signals.</td></tr>
+<tr><td><code>riskLevel</code></td><td><code>riskScore</code> bucketed into <code>LOW</code>/<code>MEDIUM</code>/<code>HIGH</code>/<code>CRITICAL</code>.</td></tr>
+<tr><td><code>events</code></td><td>The individual <code>SecurityEvent</code>s that contributed to this scan — see below.</td></tr>
+<tr><td><code>serverVerified</code></td><td>See §5.2 — <strong>not</strong> what its name might suggest.</td></tr>
+<tr><td><code>scanTimestamp</code></td><td><code>System.currentTimeMillis()</code> at scan completion (wall-clock, not monotonic).</td></tr>
+</table>
+
+<h3>5.1 A <code>false</code> boolean can mean "checked, clean" <em>or</em> "never checked"</h3>
+<p>Each detector only runs if it's enabled in your <code>ShieldConfig</code> <em>and</em> your license plan grants the relevant feature (root/runtime detection require the <code>runtime_protection</code> license feature). If a detector doesn't run — disabled locally, or not licensed — its corresponding boolean simply stays <code>false</code>, identical to a real clean result. You cannot tell "we checked for root and found none" apart from "we never checked for root" by looking at <code>rooted</code> alone. If that distinction matters for your app, inspect <code>events</code> (each fired signal has a <code>metadata</code> map identifying which detector and check produced it) rather than trusting the top-level booleans in isolation.</p>
+
+<h3>5.2 <code>serverVerified</code> reflects license state at startup, not per-scan attestation</h3>
+<p><code>serverVerified</code> is <code>true</code> if your license was successfully validated against the license server <em>when <code>initialize()</code> ran</em> — it is <strong>not</strong> recomputed per scan, and it is <strong>not</strong> a live, per-scan attestation verdict. A device that was server-verified at app launch keeps reporting <code>serverVerified = true</code> on every scan for the rest of that process's lifetime, even if connectivity is later lost. See §7 for why there is currently no separate, real per-scan server verdict signal.</p>
+
+<h3>5.3 <code>SecurityEvent</code></h3>
+<pre><code>data class SecurityEvent(
+    val eventId: String,
+    val eventType: SecurityEventType,
+    val riskContribution: Int,
+    val detectedAt: Long,
+    val metadata: Map&lt;String, String&gt;
+)</code></pre>
+<p>One entry per individual signal that fired (e.g. a specific root-detection check, a specific Frida signal). <code>metadata</code> carries check-specific detail.</p>
+
+<hr>
+
+<h2 id="6-error-handling">6. Error Handling</h2>
+<p>The real error surface, summarized from §3 and §4:</p>
+<table>
+<tr><th>Call</th><th>Can it throw?</th></tr>
+<tr><td><code>initialize()</code></td><td><strong>Never.</strong> Fire-and-forget; all internal failures are swallowed (§3.1).</td></tr>
+<tr><td><code>scan()</code></td><td><code>IllegalStateException</code> if the SDK isn't <code>READY</code> yet — covers both "still initializing" and "failed" indistinguishably.</td></tr>
+<tr><td><code>setTelemetryConsent()</code>, <code>flushTelemetry()</code>, <code>sdkVersion()</code></td><td>Never.</td></tr>
+<tr><td><code>reportError()</code></td><td>Never — guaranteed safe to call from a catch block or an uncaught-exception handler.</td></tr>
+</table>
+
+<h3>Recommended pattern</h3>
+<p>Since <code>initialize()</code> can't signal failure and there's no readiness API to poll (§3.3), the practical approach is: call <code>initialize()</code> fire-and-forget in <code>Application.onCreate()</code>, then wrap every <code>scan()</code> call site in try/catch for <code>IllegalStateException</code> with your own retry/backoff:</p>
+<pre><code>suspend fun scanWithRetry(maxAttempts: Int = 3, delayMs: Long = 1000): ScanResult? {
+    repeat(maxAttempts) { attempt -&gt;
+        try {
+            return CyberCinchShield.scan()
+        } catch (e: IllegalStateException) {
+            if (attempt == maxAttempts - 1) return null
+            delay(delayMs)
+        }
+    }
+    return null
+}</code></pre>
+<p>Since the exception doesn't distinguish "not ready yet" from "permanently failed", cap your retries — there's no way to know from the SDK alone whether waiting longer will help.</p>
+
+<h3>Reporting your own errors through the SDK</h3>
+<pre><code>fun reportError(throwable: Throwable, fatal: Boolean = false)</code></pre>
+<p>Call this from your own catch blocks or uncaught-exception handler to have the SDK emit a <code>CLIENT_ERROR_REPORTED</code> telemetry event (not a security signal — <code>riskScore</code> is always <code>0</code> for these). Safe to call unconditionally; it never throws itself.</p>
+
+<hr>
+
+<h2 id="7-known-limitations">7. Known Limitations</h2>
+<p>Two public API methods are present and callable but <strong>do not currently do anything</strong>. Both are tracked, known gaps — not something wrong with your integration if you notice they have no effect.</p>
+
+<h3><code>onServerVerdict(callback: (ScanResult) -&gt; Unit)</code> — dead code</h3>
+<p>Registers a callback that is intended to deliver an asynchronous server attestation verdict. <strong>It is never invoked</strong> — confirmed by tracing every reference to the internal field it writes to. A callback registered here will simply never fire, regardless of attestation success or failure. <strong>Use <code>ScanResult.serverVerified</code> instead</strong> (§5.2) for the real, working signal about server verification state — noting the caveat there that it reflects init-time license state, not a live per-scan verdict.</p>
+
+<h3><code>enableSslPinning(vararg certificateHashes: String)</code> / <code>ShieldConfig.enableSslPinning</code> — dead code</h3>
+<p>Neither the method nor the corresponding <code>ShieldConfig</code> flag do anything. The hashes you pass are stored internally and never read again; the config flag is never read at all. <strong>No certificate pinning is applied to your app's network calls as a result of calling this</strong>, regardless of what you pass or whether the flag is set. Do not depend on this for certificate pinning today.</p>
+
+<hr>
+
+<h2 id="8-proguard-r8-permissions">8. ProGuard / R8 &amp; Permissions</h2>
+
+<h3>8.1 ProGuard / R8</h3>
+<p>If your app enables R8/minification for release builds (<code>isMinifyEnabled = true</code>), <strong>no action is required on your part.</strong> The SDK ships a <code>consumer-rules.pro</code> bundled into the AAR, applied automatically to your build via Gradle's <code>consumerProguardFiles</code> mechanism. It keeps the SDK's public data-contract classes (<code>CyberCinchShield</code>, <code>ShieldConfig</code>, <code>ScanResult</code>, <code>SecurityEvent</code>, and their nested enums) and every native-JNI-bound internal class from being renamed or stripped. You don't need to add any <code>-keep</code> rules yourself for this SDK to keep working correctly under minification.</p>
+
+<h3>8.2 Permissions</h3>
+<p>The SDK's own manifest declares <strong>no permissions of its own</strong>. It relies entirely on your app already holding <code>android.permission.INTERNET</code> — true of virtually every real app, but worth confirming explicitly if your app is unusually permission-minimal.</p>
+<p>No manifest edits are required on your part for the SDK's internal auto-init mechanism (a <code>ContentProvider</code> merged automatically via manifest merger) — nothing to add, nothing to configure.</p>
+
+<hr>
+
+<h2 id="9-further-configuration">9. Further Configuration</h2>
+<p>Everything above covers integration mechanics. For a complete field-by-field reference of <code>ShieldConfig</code> — detection module toggles, telemetry dispatch modes and batching, license fail-open/fail-closed behavior, backend URL overrides, logging levels, and two complete example configurations (a high-security/fintech profile and a low-overhead profile) — see the <a href="configuration.html"><strong>Configuration Reference</strong></a>.</p>
+
+<hr>
+
+<h2 id="10-common-integration-patterns">10. Common Integration Patterns</h2>
+<h3>Gating a sensitive screen on scan result</h3>
+<p>A common pattern: block access to a sensitive screen (payment, account recovery, etc.) until a scan comes back clean.</p>
+<pre><code>class SensitiveActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_sensitive)
+
+        lifecycleScope.launch {
+            val result = try {
+                CyberCinchShield.scan()
+            } catch (e: IllegalStateException) {
+                // SDK not ready yet — decide your own fallback; this example
+                // fails closed rather than assuming a clean device.
+                showBlockedState("Security check unavailable — try again shortly")
+                return@launch
+            }
+
+            when {
+                result.riskLevel == RiskLevel.CRITICAL -&gt; {
+                    showBlockedState("This device does not meet our security requirements")
+                }
+                result.rooted || result.runtimeCompromised -&gt; {
+                    showBlockedState("This device does not meet our security requirements")
+                }
+                else -&gt; {
+                    showSensitiveContent()
+                }
+            }
+        }
+    }
+
+    private fun showBlockedState(message: String) { /* ... */ }
+    private fun showSensitiveContent() { /* ... */ }
+}</code></pre>
+<p>Note this example uses only <code>scan()</code>'s direct, synchronous return value — deliberately not <code>onServerVerdict</code> (§7). Whether to fail open or closed when <code>scan()</code> throws (SDK not ready) is a judgment call for your specific app's risk tolerance; the example above fails closed.</p>
+
+<footer class="page-footer">
+  CyberCinch Shield Android SDK · <a href="../">cybercinch-shield-releases</a> · <a href="configuration.html">Configuration Reference</a>
+</footer>
+
+</div>
+</body>
+</html>

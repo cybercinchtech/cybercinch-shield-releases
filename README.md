@@ -23,4 +23,4 @@ dependencies {
 }
 ```
 
-Full integration docs: see the CyberCinch Shield Android SDK developer manual.
+**Full integration docs:** [Developer Manual](guide/index.html) · [Configuration Reference](guide/configuration.html)
