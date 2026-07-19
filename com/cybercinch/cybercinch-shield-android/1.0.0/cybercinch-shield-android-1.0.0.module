@@ -1,0 +1,131 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.cybercinch",
+    "module": "cybercinch-shield-android",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.4.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.2.10"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cybercinch-shield-android-1.0.0.aar",
+          "url": "cybercinch-shield-android-1.0.0.aar",
+          "size": 384409,
+          "sha512": "da1e89ef7416af74417dfe05eb3e3f791803d61a5a85b91d07d0c564abf259c9219aae5a329521111139e0129f4ac62e2ba3313d04880cdaebef55da9017b6e9",
+          "sha256": "bb53ef6d7fd58f1da025732faa8a52765a83e098765e0d5d98beb950850815bf",
+          "sha1": "b4aa7408ee1c86231cfed27f4796c420b02e1f7c",
+          "md5": "b90214690e3bc3d4a01437a7b6535b15"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "com.squareup.okhttp3",
+          "module": "okhttp",
+          "version": {
+            "requires": "4.12.0"
+          }
+        },
+        {
+          "group": "com.google.android.gms",
+          "module": "play-services-appset",
+          "version": {
+            "requires": "16.0.2"
+          }
+        },
+        {
+          "group": "com.google.android.play",
+          "module": "integrity",
+          "version": {
+            "requires": "1.3.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-coroutines-android",
+          "version": {
+            "requires": "1.8.0"
+          }
+        },
+        {
+          "group": "androidx.lifecycle",
+          "module": "lifecycle-process",
+          "version": {
+            "requires": "2.11.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.2.10"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cybercinch-shield-android-1.0.0.aar",
+          "url": "cybercinch-shield-android-1.0.0.aar",
+          "size": 384409,
+          "sha512": "da1e89ef7416af74417dfe05eb3e3f791803d61a5a85b91d07d0c564abf259c9219aae5a329521111139e0129f4ac62e2ba3313d04880cdaebef55da9017b6e9",
+          "sha256": "bb53ef6d7fd58f1da025732faa8a52765a83e098765e0d5d98beb950850815bf",
+          "sha1": "b4aa7408ee1c86231cfed27f4796c420b02e1f7c",
+          "md5": "b90214690e3bc3d4a01437a7b6535b15"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "cybercinch-shield-android-1.0.0-sources.jar",
+          "url": "cybercinch-shield-android-1.0.0-sources.jar",
+          "size": 40178,
+          "sha512": "f04b624c34c327d7313adbd1c457996e873d8c40cf740dbbca1859d5135e6fde7530db5758c22d03a6a6ed2bfcec0e168b750c050dc79837f7676b82298c0f05",
+          "sha256": "e952ff853e0e7294467f9bcb4aeab20edf511719132c718a06747fb445547253",
+          "sha1": "40d1e1e4f89521f2edaf77c1019be8f6b385096d",
+          "md5": "b52c75966c64763551c738b43801aa15"
+        }
+      ]
+    }
+  ]
+}
