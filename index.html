@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cybercinch-shield-releases</title>
+<meta name="description" content="Public Maven repository hosting release artifacts for the CyberCinch Shield Android SDK.">
+<link rel="stylesheet" href="guide/guide.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./">cybercinch-shield-releases</a>
+    <div class="links">
+      <a href="guide/index.html">Developer Manual</a>
+      <a href="https://tools.cybercinch.in/sdk">Get an API key</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<h1>cybercinch-shield-releases</h1>
+<p class="lede">Public Maven repository hosting release artifacts for the CyberCinch Shield Android SDK.</p>
+<p>No source code lives here — this repo exists purely so <code>com.cybercinch:cybercinch-shield-android</code> can be consumed as a normal Gradle dependency with no account or token required.</p>
+
+<hr>
+
+<h2>Get started</h2>
+<p><a href="guide/index.html"><strong>Developer Manual</strong></a> — the onboarding guide: installation, initialization, scanning, error handling, and known limitations.</p>
+<p><a href="guide/configuration.html"><strong>Configuration Reference</strong></a> — field-by-field reference for every <code>ShieldConfig</code> tuning option.</p>
+
+<h2>Repository configuration</h2>
+<p>Add this to your app's Gradle configuration:</p>
+<pre><code>// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = "CyberCinchShieldReleases"
+            url = uri("https://cybercinchtech.github.io/cybercinch-shield-releases/")
+        }
+    }
+}</code></pre>
+<pre><code>// app/build.gradle.kts
+dependencies {
+    implementation("com.cybercinch:cybercinch-shield-android:1.0.0")
+}</code></pre>
+
+<h2>Raw repository</h2>
+<p>This is a static Maven repository with no directory browsing — Gradle resolves artifact paths directly and doesn't need one. If you just want the raw coordinate/version metadata without going through Gradle, see <a href="com/cybercinch/cybercinch-shield-android/maven-metadata.xml"><code>maven-metadata.xml</code></a>.</p>
+
+<footer class="page-footer">
+  CyberCinch Shield Android SDK · <a href="./">cybercinch-shield-releases</a> · <a href="guide/index.html">Developer Manual</a> · <a href="guide/configuration.html">Configuration Reference</a>
+</footer>
+
+</div>
+</body>
+</html>
